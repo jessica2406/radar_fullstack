@@ -1,24 +1,27 @@
 from flask import Flask, send_from_directory, jsonify, request
-import os
 from flask_cors import CORS
+from flask_pymongo import PyMongo
+import os
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+# MongoDB configuration
+app.config["MONGO_URI"] = "mongodb://localhost:27017/Radar"  # Connect to the Radar database
+mongo = PyMongo(app)
+
 # Configure the media folder
-MEDIA_FOLDER = 'media'  # Change this to your media folder path
+MEDIA_FOLDER = 'media'
 app.config['MEDIA_FOLDER'] = MEDIA_FOLDER
 
 # Ensure the media folder exists
 if not os.path.exists(MEDIA_FOLDER):
     os.makedirs(MEDIA_FOLDER)
 
-# Store video metadata in memory (for simplicity)
-videos = []  # List to store video metadata
-
-# Route to serve an image
+# Route to serve media files
 @app.route('/media/<path:filename>', methods=['GET'])
-def get_image(filename):
+def get_media(filename):
     return send_from_directory(app.config['MEDIA_FOLDER'], filename)
 
 # Route to upload a video
@@ -37,23 +40,26 @@ def upload_video():
     video_path = os.path.join(app.config['MEDIA_FOLDER'], file.filename)
     file.save(video_path)
 
-    # Store video metadata
+    # Store video metadata in MongoDB
     video_info = {
-        'id': str(len(videos) + 1),  # Simple ID generation
         'filename': file.filename,
         'location': location,
-        'timestamp': request.form.get('timestamp', '') or 'Just Now',  # Optional timestamp
         'status': 'pending',
         'severity': 'medium',  # Default severity
-        'imageUrl': f'http://127.0.0.1:5000/media/{file.filename}',  # URL to access the image
+        'imageUrl': f'http://127.0.0.1:5000/media/{file.filename}',
     }
-    videos.append(video_info)
+    
+    # Insert data into the 'accidents' collection
+    mongo.db.accidents.insert_one(video_info)
 
     return jsonify({'message': 'Video uploaded successfully!', 'video': video_info}), 201
 
 # Route to get the list of uploaded videos
 @app.route('/videos', methods=['GET'])
 def get_videos():
+    videos = list(mongo.db.accidents.find())  # Fetch all videos from the 'accidents' collection
+    for video in videos:
+        video['_id'] = str(video['_id'])  # Convert ObjectId to string for JSON serialization
     return jsonify(videos)
 
 if __name__ == '__main__':
