@@ -3,9 +3,12 @@ from flask_cors import CORS
 from flask_pymongo import PyMongo
 import os
 from datetime import datetime
+from bson import ObjectId  # Import ObjectId from bson
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+
+# Enable CORS for specific origins
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})  # Allow requests from your React app
 
 # MongoDB configuration
 app.config["MONGO_URI"] = "mongodb://localhost:27017/Radar"  # Connect to the Radar database
@@ -61,6 +64,26 @@ def get_videos():
     for video in videos:
         video['_id'] = str(video['_id'])  # Convert ObjectId to string for JSON serialization
     return jsonify(videos)
+
+# Route to update the status of an accident
+@app.route('/accidents/<string:accident_id>', methods=['PUT'])
+def update_accident_status(accident_id):
+    data = request.get_json()
+    new_status = data.get('status')
+
+    if new_status not in ['pending', 'completed']:
+        return jsonify({'error': 'Invalid status'}), 400
+
+    # Update the status in the database
+    result = mongo.db.accidents.update_one(
+        {'_id': ObjectId(accident_id)},  # Use ObjectId here
+        {'$set': {'status': new_status}}
+    )
+
+    if result.modified_count == 0:
+        return jsonify({'error': 'Accident not found or status not changed'}), 404
+
+    return jsonify({'message': 'Accident status updated successfully!'}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)

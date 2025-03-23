@@ -30,14 +30,23 @@ export default function Dashboard() {
   }, []);
 
   const handleStatusChange = async (id) => {
-    const updatedAccidents = accidents.map(accident =>
-      accident.id === id
-        ? { ...accident, status: accident.status === 'pending' ? 'completed' : 'pending' }
-        : accident
-    );
-    setAccidents(updatedAccidents);
+    const accidentToUpdate = accidents.find(accident => accident._id === id);
+    const newStatus = accidentToUpdate.status === 'pending' ? 'completed' : 'pending';
 
-    // Optionally, you can send the updated status to the backend here
+    // Update the status in the backend
+    try {
+      const response = await axios.put(`http://127.0.0.1:5000/accidents/${id}`, { status: newStatus });
+      if (response.status === 200) {
+        // Update the local state only if the backend update was successful
+        setAccidents(prevAccidents =>
+          prevAccidents.map(accident =>
+            accident._id === id ? { ...accident, status: newStatus } : accident
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error updating accident status:', error);
+    }
   };
 
   const filteredAccidents = accidents.filter(accident =>
@@ -79,7 +88,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-6">
           {filteredAccidents.map(accident => (
             <div
-              key={accident.id}
+              key={accident._id} // Use _id instead of id
               className="bg-slate-800 rounded-xl p-6 hover:bg-slate-750 transition-colors"
             >
               <div className="flex items-start gap-6">
@@ -91,8 +100,8 @@ export default function Dashboard() {
                   />
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-semibold text-white">Accident Report #{accident.id}</h2>
+ <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-white">Accident Report #{accident._id}</h2>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${accident.severity === 'high'
                         ? 'bg-red-500/20 text-red-400'
                         : accident.severity === 'medium'
@@ -117,7 +126,7 @@ export default function Dashboard() {
                       </span>
                     </div>
                     <button
-                      onClick={() => handleStatusChange(accident.id)}
+                      onClick={() => handleStatusChange(accident._id)} // Use _id for the click handler
                       className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${accident.status === 'pending'
                           ? 'bg-blue-600 hover:bg-blue-700 text-white'
                           : 'bg-green-600 hover:bg-green-700 text-white'
